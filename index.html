@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Foot Analysis - Import/Export</title>
+    <title>3D Foot Analysis - Professional v5</title>
     <style>
         :root {
             --primary: #00f2ff;
             --bg: #0a0a0c;
-            --panel-bg: rgba(25, 25, 30, 0.8);
+            --panel-bg: rgba(25, 25, 30, 0.9);
             --border: rgba(255, 255, 255, 0.1);
         }
 
@@ -38,33 +38,39 @@
         button:hover { background: rgba(255, 255, 255, 0.1); }
         button.active { background: var(--primary); color: #000; font-weight: bold; }
         
-        .import-btn { background: #2ecc71; color: white; margin-top: 5px; width: 100%; }
-        #coords { font-weight: 500; color: var(--primary); margin-top: 10px; font-size: 13px; }
+        .action-btn { background: #fff; color: #000; font-weight: bold; width: 100%; margin-top: 5px; border: none; padding: 12px; border-radius: 8px; cursor: pointer; }
+        .import-btn { background: #2ecc71; color: white; margin-top: 8px; }
+        
+        #coords { font-weight: 500; color: var(--primary); margin-top: 10px; font-size: 13px; font-family: monospace; }
         #fileInput { display: none; }
+        #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; justify-content:center; align-items:center; z-index:100; }
     </style>
 </head>
 <body>
+
+<div id="loading-overlay">LOADING MODEL...</div>
 
 <div id="ui-layer">
     <div class="panel">
         <h2>Foot Selection</h2>
         <div class="group">
-            <button id="leftBtn">LEFT FOOT</button>
+            <button id="leftBtn" class="active">LEFT FOOT</button>
             <button id="rightBtn">RIGHT FOOT</button>
         </div>
 
-        <h2>Interaction Mode</h2>
+        <h2>Interaction</h2>
         <div class="group">
             <button id="rotateBtn" class="active">ROTATE</button>
             <button id="drawBtn">MARK</button>
         </div>
 
-        <h2>Data Management</h2>
-        <button id="importBtn" class="import-btn">IMPORT POINTS (.TXT)</button>
-        <input type="file" id="fileInput" accept=".txt">
-        <button id="downloadBtn" style="margin-top:8px; width:100%;">DOWNLOAD REPORT</button>
+        <h2>Data Tools</h2>
+        <button id="importBtn" class="action-btn import-btn">IMPORT FROM TEXT</button>
+        <button id="downloadBtn" class="action-btn">DOWNLOAD REPORT</button>
+        <button id="clearBtn" style="margin-top:10px; color:#ff4757; background:transparent; border:1px solid #ff4757;">CLEAR MARKERS</button>
         
-        <div id="coords">Mode: Rotate</div>
+        <input type="file" id="fileInput" accept=".txt">
+        <div id="coords">Model: Left Foot</div>
     </div>
 </div>
 
@@ -82,71 +88,121 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
+const MODELS = {
+    left: "https://stuart-mcneill.github.io/3Dfootselection/Leftfoot.glb",
+    right: "https://stuart-mcneill.github.io/feet-selection/RightFoot.glb"
+};
+
+// Preset regions extracted from your indexv4.html
+const PRESET_REGIONS = [
+  { name: "Dorsal Hallux Toenail", pos: [-0.11115, 0.098, 0.465], rot: [0, 0.01, 0], scale: [0.05, 0.015, 0.05] },
+  { name: "Dorsal Hallux Interphalangeal joint", pos: [-0.11861, 0.12358, 0.38303], rot: [0.27154, 0.11557, 0.02229], scale: [0.08201, 0.02999, 0.02419] },
+  { name: "Hallux Apex", pos: [-0.11505, 0.069, 0.490], rot: [0.235, 0.097, -0.009], scale: [0.08, 0.05, 0.015] },
+  { name: "Dorsal Hallux", pos: [-0.11970, 0.103, 0.380], rot: [0.138, 0.081, 0.009], scale: [0.10, 0.033, 0.12] },
+  { name: "Plantar Hallux", pos: [-0.12036, 0.03208, 0.41179], rot: [0, 0, 0], scale: [0.10, 0.033, 0.158] },
+  { name: "Dorsal 1st Metatarsophalangeal joint", pos: [-0.13368, 0.14932, 0.27846], rot: [0.29, 0.05, 0.07], scale: [0.117, 0.058, 0.12] },
+  { name: "Plantar 1st Metatarsophalangeal joint", pos: [-0.12227, 0.02006, 0.25386], rot: [0,0,0], scale: [0.125, 0.031, 0.152] }
+  // ... (additional regions can be added here)
+];
+
 let scene, camera, renderer, controls, currentModel;
+let currentFoot = 'left';
+let interactionMode = 'rotate';
 let markerGroup = new THREE.Group();
-let mode = 'rotate'; // 'rotate' or 'mark'
+let boxGroup = new THREE.Group();
 let markerLogs = [];
 
 init();
 
 function init() {
     scene = new THREE.Scene();
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0.5, 1.5);
+    scene.background = new THREE.Color(0x0a0a0c);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
+    camera.position.set(0.5, 0.5, 1);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(window.devicePixelRatio);
     document.body.appendChild(renderer.domElement);
 
-    const light = new THREE.AmbientLight(0xffffff, 1);
-    scene.add(light);
+    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+    const spot = new THREE.PointLight(0xffffff, 10);
+    spot.position.set(2, 2, 2);
+    scene.add(spot);
+
     scene.add(markerGroup);
+    scene.add(boxGroup);
 
     controls = new OrbitControls(camera, renderer.domElement);
-    
-    window.addEventListener('resize', onResize);
-    renderer.domElement.addEventListener('click', handleInteraction);
+    controls.enableDamping = true;
 
-    // UI Logic
+    loadFoot('left');
+
+    // UI Listeners
     document.getElementById('leftBtn').onclick = () => loadFoot('left');
     document.getElementById('rightBtn').onclick = () => loadFoot('right');
-    document.getElementById('rotateBtn').onclick = () => setMode('rotate');
-    document.getElementById('drawBtn').onclick = () => setMode('mark');
+    document.getElementById('rotateBtn').onclick = () => setInteractionMode('rotate');
+    document.getElementById('drawBtn').onclick = () => setInteractionMode('mark');
+    document.getElementById('clearBtn').onclick = clearMarkers;
+    document.getElementById('downloadBtn').onclick = downloadReport;
     document.getElementById('importBtn').onclick = () => document.getElementById('fileInput').click();
     document.getElementById('fileInput').onchange = handleImport;
-    document.getElementById('downloadBtn').onclick = downloadReport;
 
+    renderer.domElement.addEventListener('click', onSceneClick);
+    window.addEventListener('resize', onResize);
     animate();
 }
 
 function loadFoot(side) {
+    currentFoot = side;
+    document.getElementById('loading-overlay').style.display = 'flex';
+    document.getElementById('leftBtn').classList.toggle('active', side === 'left');
+    document.getElementById('rightBtn').classList.toggle('active', side === 'right');
+    
     if (currentModel) scene.remove(currentModel);
     markerGroup.clear();
     markerLogs = [];
     
-    const loader = new GLTFLoader();
-    // Replace with your actual model paths
-    const url = side === 'left' ? 'path_to_left_foot.glb' : 'path_to_right_foot.glb';
-    
-    loader.load(url, (gltf) => {
+    new GLTFLoader().load(MODELS[side], (gltf) => {
         currentModel = gltf.scene;
         scene.add(currentModel);
-        document.getElementById('coords').textContent = `Loaded: ${side.toUpperCase()}`;
-    }, undefined, (err) => {
-        console.error("Model path missing. Please update the URL in loadFoot().", err);
+        
+        // Setup Hit Boxes for this foot
+        setupBoxes(side);
+        
+        document.getElementById('loading-overlay').style.display = 'none';
+        document.getElementById('coords').textContent = `Model: ${side.toUpperCase()} Foot`;
     });
 }
 
-function setMode(newMode) {
-    mode = newMode;
-    controls.enabled = (mode === 'rotate');
-    document.getElementById('rotateBtn').classList.toggle('active', mode === 'rotate');
-    document.getElementById('drawBtn').classList.toggle('active', mode === 'mark');
-    document.getElementById('coords').textContent = `Mode: ${mode.toUpperCase()}`;
+function setupBoxes(side) {
+    boxGroup.clear();
+    const mirror = (side === 'right' ? -1 : 1);
+    
+    PRESET_REGIONS.forEach(reg => {
+        const geo = new THREE.BoxGeometry(reg.scale[0], reg.scale[1], reg.scale[2]);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, wireframe: true, transparent: true, opacity: 0.1 });
+        const box = new THREE.Mesh(geo, mat);
+        
+        // Mirror position if Right Foot
+        box.position.set(reg.pos[0] * mirror, reg.pos[1], reg.pos[2]);
+        box.rotation.set(reg.rot[0], reg.rot[1] * mirror, reg.rot[2]);
+        box.userData.name = reg.name;
+        
+        boxGroup.add(box);
+    });
 }
 
-function handleInteraction(event) {
-    if (mode !== 'mark' || !currentModel) return;
+function setInteractionMode(m) {
+    interactionMode = m;
+    controls.enabled = (m === 'rotate');
+    document.getElementById('rotateBtn').classList.toggle('active', m === 'rotate');
+    document.getElementById('drawBtn').classList.toggle('active', m === 'mark');
+}
+
+function onSceneClick(event) {
+    if (interactionMode !== 'mark') return;
 
     const mouse = new THREE.Vector2(
         (event.clientX / window.innerWidth) * 2 - 1,
@@ -155,21 +211,32 @@ function handleInteraction(event) {
 
     const raycaster = new THREE.Raycaster();
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(currentModel, true);
-
+    
+    // Check if we hit a preset box first
+    const intersects = raycaster.intersectObjects(boxGroup.children);
+    
     if (intersects.length > 0) {
-        const point = intersects[0].point;
-        addMarker(point.x, point.y, point.z, "Manual Point");
+        const hit = intersects[0];
+        addMarker(hit.point, hit.object.userData.name);
     }
 }
 
-function addMarker(x, y, z, regionName) {
-    const geo = new THREE.SphereGeometry(0.01);
-    const mat = new THREE.MeshBasicMaterial({ color: 0x00f2ff });
-    const marker = new THREE.Mesh(geo, mat);
-    marker.position.set(x, y, z);
-    markerGroup.add(marker);
-    markerLogs.push({ region: regionName, x, y, z });
+function addMarker(pos, regionName) {
+    const sphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.006),
+        new THREE.MeshBasicMaterial({ color: 0xff4757 })
+    );
+    sphere.position.copy(pos);
+    markerGroup.add(sphere);
+    
+    markerLogs.push({
+        region: regionName,
+        x: pos.x.toFixed(4),
+        y: pos.y.toFixed(4),
+        z: pos.z.toFixed(4)
+    });
+    
+    document.getElementById('coords').textContent = `Marked: ${regionName}`;
 }
 
 function handleImport(event) {
@@ -182,39 +249,49 @@ function handleImport(event) {
         markerGroup.clear();
         markerLogs = [];
 
-        // Regex to find: [Region Name] Coords: x, y, z
+        // Updated Regex to find coordinates from your text format: [Name] Coords: x, y, z
         const regex = /\[(.*?)\] Coords: ([\d.-]+), ([\d.-]+), ([\d.-]+)/g;
         let match;
         while ((match = regex.exec(text)) !== null) {
             const [_, name, x, y, z] = match;
-            addMarker(parseFloat(x), parseFloat(y), parseFloat(z), name);
+            const pos = new THREE.Vector3(parseFloat(x), parseFloat(y), parseFloat(z));
+            addMarker(pos, name);
         }
-        document.getElementById('coords').textContent = `Imported ${markerLogs.length} points`;
+        document.getElementById('coords').textContent = `Imported ${markerLogs.length} Points`;
     };
     reader.readAsText(file);
 }
 
 function downloadReport() {
-    let txt = `FOOT ANALYSIS REPORT\nDate: ${new Date().toLocaleString()}\n\n`;
+    if (markerLogs.length === 0) return alert("No points to export.");
+    let txt = `FOOT ANALYSIS REPORT\nSide: ${currentFoot.toUpperCase()}\n\n`;
     markerLogs.forEach((m, i) => {
-        txt += `${i + 1}. [${m.region}] Coords: ${m.x.toFixed(4)}, ${m.y.toFixed(4)}, ${m.z.toFixed(4)}\n`;
+        txt += `${i + 1}. [${m.region}] Coords: ${m.x}, ${m.y}, ${m.z}\n`;
     });
-    const blob = new Blob([txt], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `Foot_Analysis.txt`;
-    a.click();
+    
+    const blob = new Blob([txt], { type: 'text/plain' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `Foot_Report_${currentFoot}.txt`;
+    link.click();
 }
 
-function animate() {
-    requestAnimationFrame(animate);
-    renderer.render(scene, camera);
+function clearMarkers() {
+    markerGroup.clear();
+    markerLogs = [];
+    document.getElementById('coords').textContent = "Markers Cleared";
 }
 
 function onResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
 }
 </script>
 </body>
