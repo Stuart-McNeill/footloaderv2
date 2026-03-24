@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Foot Analysis</title>
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --bg: #0a0a0c;
+            --panel-bg: rgba(25, 25, 30, 0.8);
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            font-family: 'Inter', -apple-system, sans-serif; 
+            background: var(--bg); 
+            color: white; 
+        }
+
+        /* Modern Glass UI */
+        #ui-layer { 
+            position: absolute; 
+            top: 20px; 
+            left: 20px; 
+            z-index: 10; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 15px; 
+            pointer-events: none; 
+            width: 280px;
+        }
+
+        .panel { 
+            background: var(--panel-bg); 
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 20px; 
+            border-radius: 16px; 
+            border: 1px solid var(--border); 
+            pointer-events: auto; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+
+        h2 { 
+            margin: 0 0 12px 0; 
+            font-size: 11px; 
+            text-transform: uppercase; 
+            letter-spacing: 1.5px; 
+            color: #888; 
+        }
+
+        .group { display: flex; gap: 8px; margin-bottom: 12px; }
+
+        button { 
+            background: rgba(255, 255, 255, 0.05); 
+            color: white; 
+            border: 1px solid var(--border); 
+            padding: 10px 14px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-size: 12px; 
+            font-weight: 500;
+            transition: all 0.2s ease; 
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        button:hover { 
+            background: rgba(255, 255, 255, 0.1); 
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        button.active { 
+            background: var(--primary); 
+            color: #000; 
+            border-color: var(--primary);
+            box-shadow: 0 0 15px rgba(0, 242, 255, 0.3);
+        }
+
+        #downloadBtn {
+            background: white;
+            color: black;
+            font-weight: 600;
+            margin-top: 5px;
+        }
+
+        #downloadBtn:hover {
+            background: #eee;
+        }
+
+        #status { font-family: monospace; font-size: 10px; color: #555; margin-top: 10px; text-transform: uppercase; }
+        #coords { font-weight: 500; color: var(--primary); margin-top: 4px; font-size: 14px; }
+
+        ::-webkit-scrollbar { display: none; }
+    </style>
+</head>
+<body>
+
+<div id="ui-layer">
+    <div class="panel">
+        <h2>Selection</h2>
+        <div class="group">
+            <button id="leftBtn" class="active">LEFT</button>
+            <button id="rightBtn">RIGHT</button>
+        </div>
+
+        <h2>Navigation & Tools</h2>
+        <div class="group">
+            <button id="rotateBtn" class="active">ROTATE</button>
+            <button id="drawBtn">MARK</button>
+        </div>
+        
+        <div class="group">
+            <button id="undoBtn">UNDO</button>
+            <button id="clearMarkersBtn">CLEAR</button>
+        </div>
+
+        <button id="downloadBtn">DOWNLOAD REPORT</button>
+
+        <div id="status">System Ready</div>
+        <div id="coords">Region: None</div>
+    </div>
+</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+// Extracted from indexv4.html
+const PRESET_REGIONS = [
+  { name: "Left foot - Dorsal Hallux Toenail", pos: [-0.11115, 0.098, 0.465], rot: [0, 0.01, 0], scale: [0.05, 0.015, 0.05] },
+  { name: "Left foot - Dorsal Hallux Interphalangeal joint", pos: [-0.11861, 0.12358, 0.38303], rot: [0.27154, 0.11557, 0.02229], scale: [0.08201, 0.02999, 0.02419] },
+  { name: "Left foot - Lateral Hallux Interphalangeal joint", pos: [-0.08142, 0.06081, 0.37553], rot: [0.06665, 0.19010, 0.00526], scale: [0.01348, 0.07351, 0.02105] },
+  { name: "Left foot - Medial Hallux Interphalangeal joint", pos: [-0.16746, 0.06292, 0.38540], rot: [0.00000, 0.00000, 0.00000], scale: [0.01244, 0.06737, 0.01645] },
+  { name: "Left foot - Plantar Hallux Interphalangeal joint", pos: [-0.12047, 0.02169, 0.38239], rot: [-0.00636, 0.08653, -0.05221], scale: [0.10000, 0.02114, 0.01632] },
+  { name: "Left foot - Hallux Apex", pos: [-0.11505, 0.069, 0.490], rot: [0.235, 0.097, -0.009], scale: [0.08, 0.05, 0.015] },
+  { name: "Left foot - Lateral Hallux", pos: [-0.07560, 0.06849, 0.40518], rot: [-0.03458, 0.05742, 0.06437], scale: [0.02562, 0.08314, 0.14051] },
+  { name: "Left foot - Medial Hallux", pos: [-0.15606, 0.06700, 0.40831], rot: [0.00000, 0.11673, 0.00000], scale: [0.03781, 0.06493, 0.15382] },
+  { name: "Left foot - Dorsal Hallux", pos: [-0.11970, 0.103, 0.380], rot: [0.138, 0.081, 0.009], scale: [0.10, 0.033, 0.12] },
+  { name: "Left foot - Plantar Hallux", pos: [-0.12036, 0.03208, 0.41179], rot: [0.00000, 0.00000, 0.00000], scale: [0.10000, 0.03388, 0.15863] },
+  { name: "Left foot - Dorsal 1st Metatarsophalangeal joint", pos: [-0.13368, 0.14932, 0.27846], rot: [0.29071, 0.05714, 0.07830], scale: [0.11730, 0.05807, 0.12003] },
+  { name: "Left foot - Medial 1st Metatarsophalangeal joint", pos: [-0.17744, 0.07693, 0.26768], rot: [0.01554, 0.00000, 0.00000], scale: [0.03671, 0.10974, 0.13937] },
+  { name: "Left foot - Plantar 1st Metatarsophalangeal joint", pos: [-0.12227, 0.02006, 0.25386], rot: [0.00000, 0.00000, 0.00000], scale: [0.12576, 0.03151, 0.15248] },
+  { name: "Left foot - Plantar Tibial Sesamoid", pos: [-0.15245, 0.00588, 0.23175], rot: [0.00000, 0.00000, 0.00000], scale: [0.04774, 0.02183, 0.04182] },
+  { name: "Left foot - Plantar Fibular Sesamoid", pos: [-0.08952, 0.00688, 0.23350], rot: [0.00000, 0.00000, 0.00000], scale: [0.04182, 0.02520, 0.03852] },
+  { name: "Left foot - Dorsal 1st Metatarsal", pos: [-0.13058, 0.19897, 0.12122], rot: [0.32092, -0.04192, 0.08089], scale: [0.10811, 0.10000, 0.23570] },
+  { name: "Left foot - Medial 1st Metatarsal", pos: [-0.16198, 0.10509, 0.13224], rot: [0.15718, -0.05458, 0.00836], scale: [0.03988, 0.11276, 0.30453] },
+  { name: "Left foot - Plantar 1st Metatarsal", pos: [-0.12261, 0.03913, 0.07892], rot: [0.13096, -0.00243, 0.00878], scale: [0.10220, 0.06527, 0.23585] },
+  { name: "Left foot - Dorsal 2nd Metatarsophalangeal joint", pos: [-0.03394, 0.16079, 0.28600], rot: [0.32320, 0.05148, 0.00935], scale: [0.08952, 0.07761, 0.10000] },
+  { name: "Left foot - Dorsal Medial Cuneiform", pos: [-0.11574, 0.24685, -0.00388], rot: [0.29866, -0.05346, -0.01968], scale: [0.07438, 0.10000, 0.09346] },
+  { name: "Left foot - Medial Medial Cuneiform", pos: [-0.17017, 0.14822, -0.04030], rot: [0.20940, -0.01620, 0.01669], scale: [0.10000, 0.12331, 0.08063] },
+  { name: "Left foot - Plantar Medial Cuneiform", pos: [-0.12533, 0.04925, -0.05131], rot: [0.11458, 0.00541, 0.00950], scale: [0.10000, 0.10000, 0.10000] },
+  { name: "Left foot - Dorsal 2nd Distal Interphalangeal joint", pos: [-0.01081, 0.07865, 0.44515], rot: [0.39073, 0.14437, -0.02921], scale: [0.05034, 0.03747, 0.02804] },
+  { name: "Left foot - Dorsal 2nd Proximal Interphalangeal joint", pos: [-0.01994, 0.11085, 0.38387], rot: [0.31598, 0.04014, -0.01347], scale: [0.04701, 0.04673, 0.02615] },
+  { name: "Left foot - Plantar 2nd Distal Interphalangeal joint", pos: [-0.01561, 0.04247, 0.42235], rot: [0.20244, 0.00000, 0.00000], scale: [0.04796, 0.03265, 0.03043] },
+  { name: "Left foot - Plantar 2nd Proximal Interphalangeal joint", pos: [-0.01880, 0.04981, 0.37258], rot: [-0.00083, 0.05341, 0.00006], scale: [0.05206, 0.03859, 0.02284] },
+  { name: "Left foot - 2nd Toenail", pos: [-0.01002, 0.06751, 0.46084], rot: [0.32656, 0.00000, 0.00000], scale: [0.04523, 0.01522, 0.03537] },
+  { name: "Left foot - 2nd Toe Apex", pos: [-0.00810, 0.04853, 0.47772], rot: [0.29326, 0.10461, -0.03673], scale: [0.05171, 0.04152, 0.01522] },
+  { name: "Left foot - 2nd Medial Toe", pos: [-0.03545, 0.07032, 0.40921], rot: [0.20075, 0.07619, -0.00103], scale: [0.01951, 0.06945, 0.13567] },
+  { name: "Left foot - 2nd Lateral Toe", pos: [0.00583, 0.07198, 0.40449], rot: [0.20994, 0.08812, -0.00490], scale: [0.01671, 0.05420, 0.14406] },
+  { name: "Left foot - 2nd Dorsal Toe", pos: [-0.01468, 0.09155, 0.40058], rot: [0.34628, 0.04281, 0.01834], scale: [0.05893, 0.02167, 0.14818] },
+  { name: "Left foot - 2nd Plantar Toe", pos: [-0.01618, 0.04654, 0.40642], rot: [0.17799, 0.03050, 0.03137], scale: [0.04960, 0.02874, 0.13972] },
+  { name: "Left foot - Plantar 2nd Metatarsophalangeal joint", pos: [-0.02562, 0.02903, 0.28507], rot: [-0.00041, 0.02423, 0.00107], scale: [0.07225, 0.06332, 0.10000] },
+  { name: "Left foot - Plantar 2nd Metatarsal", pos: [-0.03303, 0.01230, 0.09663], rot: [0.10402, 0.03693, -0.01626], scale: [0.07178, 0.04144, 0.28883] },
+  { name: "Left foot - Dorsal 2nd Metatarsal", pos: [-0.04009, 0.21779, 0.13300], rot: [0.40875, 0.00694, -0.07332], scale: [0.07738, 0.03976, 0.23533] },
+  { name: "Left foot - Dorsal 3rd Distal Interphalangeal joint", pos: [0.04594, 0.08388, 0.40837], rot: [0.57523, 0.09805, -0.00419], scale: [0.04164, 0.04533, 0.01864] },
+  { name: "Left foot - Dorsal 3rd Proximal Interphalangeal joint", pos: [0.04292, 0.11583, 0.37262], rot: [0.50611, 0.08009, 0.01105], scale: [0.04484, 0.03883, 0.01620] },
+  { name: "Left foot - Plantar 3rd Distal Interphalangeal joint", pos: [0.04646, 0.02964, 0.39256], rot: [0.33775, 0.07359, -0.02340], scale: [0.05372, 0.03549, 0.01623] },
+  { name: "Left foot - Plantar 3rd Proximal Interphalangeal joint", pos: [0.04506, 0.04861, 0.34711], rot: [0.21720, 0.01816, -0.03115], scale: [0.05025, 0.03706, 0.01949] },
+  { name: "Left foot - 3rd Toenail", pos: [0.04958, 0.06720, 0.43687], rot: [0.45915, 0.08041, 0.01422], scale: [0.03122, 0.03219, 0.02904] },
+  { name: "Left foot - 3rd Toe Apex", pos: [0.04986, 0.04311, 0.43959], rot: [0.46568, 0.00000, 0.00000], scale: [0.03048, 0.03553, 0.01656] },
+  { name: "Left foot - Medial 3rd Toe", pos: [0.02702, 0.06311, 0.40055], rot: [0.26565, 0.03007, 0.02480], scale: [0.01657, 0.05957, 0.09568] },
+  { name: "Left foot - Lateral 3rd Toe", pos: [0.06521, 0.07792, 0.38203], rot: [0.34488, 0.04876, -0.10898], scale: [0.01596, 0.04537, 0.13675] },
+  { name: "Left foot - 3rd Dorsal Toe", pos: [0.04416, 0.09326, 0.38542], rot: [0.34884, 0.04825, -0.02644], scale: [0.04543, 0.01509, 0.11494] },
+  { name: "Left foot - 3rd Plantar Toe", pos: [0.04739, 0.04983, 0.37990], rot: [0.20388, 0.07251, -0.02713], scale: [0.04577, 0.01335, 0.11463] },
+  { name: "Left foot - Plantar 3rd Metatarsophalangeal joint", pos: [0.03764, 0.02354, 0.27781], rot: [-0.11055, 0.04536, 0.00980], scale: [0.05712, 0.06427, 0.09145] },
+  { name: "Left foot - Dorsal 3rd Metatarsophalangeal joint", pos: [0.04484, 0.16543, 0.28954], rot: [0.39250, 0.03165, -0.01285], scale: [0.07287, 0.10000, 0.10000] },
+  { name: "Left foot - Dorsal 3rd Metatarsal", pos: [0.03791, 0.19818, 0.13383], rot: [0.37459, -0.00091, -0.03665], scale: [0.08064, 0.06509, 0.21133] },
+  { name: "Left foot - Plantar 3rd Metatarsal", pos: [0.03191, 0.01079, 0.09959], rot: [0.18081, 0.05234, -0.02656], scale: [0.05910, 0.06231, 0.27315] },
+  { name: "Left foot - 4th Toe Apex", pos: [0.10065, 0.04210, 0.39601], rot: [0.39343, 0.06197, -0.02888], scale: [0.02855, 0.03278, 0.01565] },
+  { name: "Left foot - 4th Toenail", pos: [0.10148, 0.06135, 0.38620], rot: [0.40126, 0.08510, -0.03490], scale: [0.03854, 0.01372, 0.03482] },
+  { name: "Left foot - Dorsal 4th Distal Interphalangeal joint", pos: [0.10133, 0.07958, 0.37492], rot: [0.30122, 0.04016, -0.01830], scale: [0.03680, 0.04370, 0.01115] },
+  { name: "Left foot - Dorsal 4th Proximal Interphalangeal joint", pos: [0.10286, 0.09762, 0.34739], rot: [0.36166, 0.09566, -0.09988], scale: [0.03192, 0.04757, 0.01072] },
+  { name: "Left foot - 4th Dorsal Toe", pos: [0.10023, 0.08233, 0.34892], rot: [0.40176, -0.01479, -0.03401], scale: [0.04271, 0.02026, 0.09227] },
+  { name: "Left foot - Plantar 4th Distal Interphalangeal joint", pos: [0.09432, 0.03661, 0.36287], rot: [0.15765, 0.05873, 0.00372], scale: [0.04518, 0.04682, 0.01401] },
+  { name: "Left foot - Plantar 4th Proximal Interphalangeal joint", pos: [0.09843, 0.06098, 0.32453], rot: [0.17165, 0.06679, -0.01893], scale: [0.04364, 0.04061, 0.01296] },
+  { name: "Left foot - Plantar 4th Toe", pos: [0.10031, 0.04852, 0.34457], rot: [0.26661, 0.05433, -0.04147], scale: [0.04636, 0.01089, 0.08608] },
+  { name: "Left foot - Lateral 4th Toe", pos: [0.11589, 0.07218, 0.32946], rot: [0.32071, 0.05056, -0.06838], scale: [0.00949, 0.03803, 0.10088] },
+  { name: "Left foot - Medial 4th Toe", pos: [0.07770, 0.06633, 0.35885], rot: [0.35848, 0.06978, -0.10994], scale: [0.00643, 0.03678, 0.09890] },
+  { name: "Left foot - 5th Toe Apex", pos: [0.14734, 0.03651, 0.35117], rot: [0.95715, 0.02880, -0.12951], scale: [0.01931, 0.01921, 0.00342] },
+  { name: "Left foot - 5th Toenail", pos: [0.15017, 0.04966, 0.34246], rot: [2.06427, -0.02082, 1.54951], scale: [0.02826, 0.02915, 0.00717] },
+  { name: "Left foot - Dorsal 5th Distal Interphalangeal joint", pos: [0.15283, 0.07293, 0.34000], rot: [0.35443, -0.05178, -0.06247], scale: [0.02608, 0.03114, 0.00835] },
+  { name: "Left foot - Dorsal 5th Proximal Interphalangeal joint", pos: [0.15502, 0.07566, 0.32051], rot: [0.36554, -0.02790, -0.04379], scale: [0.03082, 0.04780, 0.00763] },
+  { name: "Left foot - Plantar 5th Distal Interphalangeal joint", pos: [0.14818, 0.03843, 0.33128], rot: [0.27723, 0.03712, -0.12412], scale: [0.03019, 0.04120, 0.00807] },
+  { name: "Left foot - Plantar 5th Proximal Interphalangeal joint", pos: [0.15532, 0.04729, 0.30191], rot: [0.30274, 0.02221, -0.07564], scale: [0.03099, 0.04631, 0.00751] },
+  { name: "Left foot - 5th Dorsal Toe", pos: [0.15913, 0.07617, 0.30178], rot: [0.27989, -0.05807, -0.12434], scale: [0.03655, 0.01103, 0.07757] },
+  { name: "Left foot - 5th Plantar Toe", pos: [0.14444, 0.04506, 0.31317], rot: [0.29406, 0.00005, 0.00027], scale: [0.03439, 0.01723, 0.06627] },
+  { name: "Left foot - 5th Medial Toe", pos: [0.13765, 0.05807, 0.31499], rot: [0.15484, -0.08076, -0.02360], scale: [0.01672, 0.02617, 0.06402] },
+  { name: "Left foot - 5th Lateral Toe", pos: [0.16575, 0.05852, 0.31868], rot: [0.26492, -0.06765, -0.18791], scale: [0.01318, 0.02775, 0.08480] },
+  { name: "Left foot - Plantar 4th Metatarsophalangeal joint", pos: [0.09358, 0.02514, 0.27015], rot: [-0.01038, 0.07019, 0.04787], scale: [0.05265, 0.06951, 0.07306] },
+  { name: "Left foot - Dorsal 4th Metatarsophalangeal joint", pos: [0.10658, 0.13172, 0.25953], rot: [0.31958, -0.01414, -0.01277], scale: [0.05724, 0.10000, 0.08049] },
+  { name: "Left foot - Dorsal 5th Metatarsophalangeal joint", pos: [0.16098, 0.12258, 0.20810], rot: [0.22476, -0.09131, -0.07091], scale: [0.06064, 0.10000, 0.12244] },
+  { name: "Left foot - Plantar 5th Metatarsophalangeal joint", pos: [0.15671, 0.02905, 0.20695], rot: [-0.01479, -0.07405, -0.15925], scale: [0.05707, 0.05933, 0.15656] },
+  { name: "Left foot - Lateral 5th Metatarsophalangeal joint", pos: [0.18809, 0.06346, 0.19148], rot: [0.05798, 0.04696, -0.17125], scale: [0.05131, 0.04416, 0.10642] },
+  { name: "Left foot - Dorsal 4th Metatarsal", pos: [0.09982, 0.14247, 0.11031], rot: [0.36551, -0.02976, -0.06092], scale: [0.04942, 0.05673, 0.23769] },
+  { name: "Left foot - Dorsal 5th Metatarsal", pos: [0.15384, 0.10360, 0.06758], rot: [0.16690, 0.06165, -0.01446], scale: [0.04858, 0.08361, 0.23036] },
+  { name: "Left foot - Plantar 4th Metatarsal", pos: [0.08627, 0.02601, 0.10097], rot: [0.09636, 0.04298, 0.00013], scale: [0.05133, 0.10000, 0.26879] },
+  { name: "Left foot - Plantar 5th Metatarsal", pos: [0.13376, 0.03736, 0.04976], rot: [0.09010, 0.11913, -0.01261], scale: [0.05608, 0.05437, 0.20694] },
+  { name: "Left foot - Lateral 5th Metatarsal", pos: [0.16999, 0.06538, 0.04703], rot: [0.16354, 0.17345, 0.00317], scale: [0.04510, 0.04608, 0.21269] },
+  { name: "Left foot - Dorsal Intermediate Cuneiform", pos: [-0.04029, 0.27050, -0.00387], rot: [0.35109, 0.00632, 0.00426], scale: [0.07465, 0.10000, 0.08131] },
+  { name: "Left foot - Dorsal Lateral Cuneiform", pos: [0.03482, 0.25725, -0.00520], rot: [0.36357, -0.00243, 0.00676], scale: [0.07232, 0.09568, 0.08498] },
+  { name: "Left foot - Plantar Lateral Cuneiform", pos: [0.02487, 0.00281, -0.07487], rot: [0.05533, 0.07080, -0.02091], scale: [0.06103, 0.10000, 0.06857] },
+  { name: "Left foot - Plantar Intermediate Cuneiform", pos: [-0.03941, 0.03391, -0.07551], rot: [0.09447, 0.03926, -0.00836], scale: [0.06947, 0.07601, 0.05860] },
+  { name: "Left foot - Dorsal Navicular", pos: [-0.05302, 0.29923, -0.07043], rot: [0.35370, -0.00807, -0.02131], scale: [0.18135, 0.10000, 0.06765] },
+  { name: "Left foot - Dorsal Cuboid", pos: [0.10843, 0.20645, -0.07043], rot: [0.34234, 0.02381, 0.08045], scale: [0.09177, 0.17925, 0.14379] },
+  { name: "Left foot - Lateral Cuboid", pos: [0.16293, 0.10383, -0.10200], rot: [0.05801, -0.03822, -0.03054], scale: [0.10000, 0.13606, 0.10000] },
+  { name: "Left foot - Plantar Cuboid", pos: [0.10264, 0.05256, -0.09709], rot: [0.13568, 0.08279, -0.16764], scale: [0.08219, 0.10000, 0.11559] },
+  { name: "Left foot - Medial Navicular", pos: [-0.11272, 0.18569, -0.10836], rot: [0.26887, 0.01792, 0.02201], scale: [0.10000, 0.15506, 0.10000] }
+];
+
+let scene, camera, renderer, controls, raycaster, mouse;
+let currentFoot = 'left';
+let currentMode = 'rotate';
+let markerLogs = [];
+let markerGroup = new THREE.Group();
+let boxGroup = new THREE.Group();
+
+init();
+animate();
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0a0a0c);
+
+    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 1.2, 2);
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    dirLight.position.set(5, 5, 5);
+    scene.add(dirLight);
+
+    raycaster = new THREE.Raycaster();
+    mouse = new THREE.Vector2();
+
+    scene.add(markerGroup);
+    scene.add(boxGroup);
+
+    setupRegions();
+    loadModel();
+
+    window.addEventListener('resize', onResize);
+    window.addEventListener('click', onClick);
+
+    document.getElementById("leftBtn").onclick = () => switchFoot('left');
+    document.getElementById("rightBtn").onclick = () => switchFoot('right');
+    document.getElementById("rotateBtn").onclick = () => switchMode('rotate');
+    document.getElementById("drawBtn").onclick = () => switchMode('draw');
+    document.getElementById("undoBtn").onclick = undoLastMarker;
+    document.getElementById("clearMarkersBtn").onclick = clearMarkers;
+    document.getElementById("downloadBtn").onclick = downloadReport;
+}
+
+function setupRegions() {
+    boxGroup.clear();
+    PRESET_REGIONS.forEach(reg => {
+        const geo = new THREE.BoxGeometry(reg.scale[0], reg.scale[1], reg.scale[2]);
+        const mat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, transparent: true, opacity: 0.15, wireframe: true });
+        const box = new THREE.Mesh(geo, mat);
+        box.position.set(reg.pos[0], reg.pos[1], reg.pos[2]);
+        box.rotation.set(reg.rot[0], reg.rot[1], reg.rot[2]);
+        box.userData.region = reg.name;
+        boxGroup.add(box);
+    });
+}
+
+function loadModel() {
+    document.getElementById("status").textContent = "Loading Model...";
+    // Placeholder for actual model loading logic
+    document.getElementById("status").textContent = "Model Loaded";
+}
+
+function onClick(event) {
+    if (currentMode !== 'draw') return;
+    
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+
+    const intersects = raycaster.intersectObjects(boxGroup.children);
+    if (intersects.length > 0) {
+        const hit = intersects[0];
+        const region = hit.object.userData.region;
+        const pos = hit.point;
+        
+        const marker = new THREE.Mesh(
+            new THREE.SphereGeometry(0.005),
+            new THREE.MeshBasicMaterial({ color: 0xff0000 })
+        );
+        marker.position.copy(pos);
+        markerGroup.add(marker);
+        
+        markerLogs.push({ region, x: pos.x.toFixed(3), y: pos.y.toFixed(3), z: pos.z.toFixed(3) });
+        document.getElementById("coords").textContent = region.replace(/Left foot - |Right foot - /g, "");
+    }
+}
+
+function undoLastMarker() {
+    if (markerGroup.children.length > 0) {
+        markerGroup.remove(markerGroup.children[markerGroup.children.length - 1]);
+        markerLogs.pop();
+        const last = markerLogs[markerLogs.length - 1];
+        document.getElementById("coords").textContent = last ? last.region.replace(/Left foot - |Right foot - /g, "") : "Region: None";
+    }
+}
+
+function clearMarkers() {
+    markerGroup.clear();
+    markerLogs = [];
+    document.getElementById("coords").textContent = "Region: None";
+}
+
+function downloadReport() {
+    if (markerLogs.length === 0) return alert("Please mark the foot before downloading.");
+    let txt = `FOOT ANALYSIS REPORT\nSide: ${currentFoot.toUpperCase()}\nDate: ${new Date().toLocaleString()}\n\n`;
+    markerLogs.forEach((m, i) => {
+        txt += `${i + 1}. [${m.region}] Coords: ${m.x}, ${m.y}, ${m.z}\n`;
+    });
+    const blob = new Blob([txt], { type: "text/plain" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob); 
+    a.download = `Foot_Report_${currentFoot}.txt`; 
+    a.click();
+}
+
+function switchFoot(side) {
+    currentFoot = side;
+    document.getElementById("leftBtn").classList.toggle("active", side === 'left');
+    document.getElementById("rightBtn").classList.toggle("active", side === 'right');
+    clearMarkers();
+}
+
+function switchMode(mode) {
+    currentMode = mode;
+    document.getElementById("rotateBtn").classList.toggle("active", mode === 'rotate');
+    document.getElementById("drawBtn").classList.toggle("active", mode === 'draw');
+    controls.enabled = mode === 'rotate';
+}
+
+function onResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+</script>
+</body>
+</html>
