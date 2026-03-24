@@ -3,296 +3,367 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Foot Analysis - Professional v5</title>
+    <title>3D Foot Marker Visualizer</title>
     <style>
         :root {
             --primary: #00f2ff;
-            --bg: #0a0a0c;
-            --panel-bg: rgba(25, 25, 30, 0.9);
-            --border: rgba(255, 255, 255, 0.1);
+            --bg-dark: #0a0a0c;
+            --panel-bg: rgba(25, 25, 30, 0.8);
+            --text: #ffffff;
         }
 
-        body { margin: 0; overflow: hidden; font-family: 'Inter', sans-serif; background: var(--bg); color: white; }
-
-        #ui-layer { 
-            position: absolute; top: 20px; left: 20px; z-index: 10; 
-            display: flex; flex-direction: column; gap: 15px; width: 280px;
-            pointer-events: none;
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: var(--bg-dark);
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            color: var(--text);
         }
 
-        .panel { 
-            background: var(--panel-bg); backdrop-filter: blur(12px);
-            padding: 20px; border-radius: 16px; border: 1px solid var(--border); 
-            pointer-events: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        #container {
+            width: 100%;
+            height: 100%;
         }
 
-        h2 { margin: 0 0 12px 0; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #888; }
-        .group { display: flex; gap: 8px; margin-bottom: 12px; }
-
-        button { 
-            background: rgba(255, 255, 255, 0.05); color: white; border: 1px solid var(--border); 
-            padding: 10px; border-radius: 8px; cursor: pointer; font-size: 11px; flex: 1;
-            transition: all 0.2s;
+        /* Glass-morphism UI */
+        .ui-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            width: 300px;
+            padding: 24px;
+            background: var(--panel-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+            z-index: 10;
         }
 
-        button:hover { background: rgba(255, 255, 255, 0.1); }
-        button.active { background: var(--primary); color: #000; font-weight: bold; }
-        
-        .action-btn { background: #fff; color: #000; font-weight: bold; width: 100%; margin-top: 5px; border: none; padding: 12px; border-radius: 8px; cursor: pointer; }
-        .import-btn { background: #2ecc71; color: white; margin-top: 8px; }
-        
-        #coords { font-weight: 500; color: var(--primary); margin-top: 10px; font-size: 13px; font-family: monospace; }
-        #fileInput { display: none; }
-        #loading-overlay { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.8); display:none; justify-content:center; align-items:center; z-index:100; }
+        h2 {
+            margin: 0 0 20px 0;
+            font-size: 1.2rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            color: var(--primary);
+            text-transform: uppercase;
+        }
+
+        .section {
+            margin-bottom: 24px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 10px;
+            font-size: 0.85rem;
+            opacity: 0.8;
+        }
+
+        /* Toggle Switch */
+        .toggle-container {
+            display: flex;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 4px;
+            margin-bottom: 15px;
+        }
+
+        .toggle-btn {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            background: transparent;
+            color: white;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+
+        .toggle-btn.active {
+            background: var(--primary);
+            color: #000;
+            font-weight: bold;
+        }
+
+        /* Import Button */
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .btn-import {
+            width: 100%;
+            background: transparent;
+            border: 2px solid var(--primary);
+            color: var(--primary);
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        .btn-import:hover {
+            background: var(--primary);
+            color: #000;
+        }
+
+        #fileInput {
+            position: absolute;
+            font-size: 100px;
+            right: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        /* Status Readout */
+        .status-box {
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 8px;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.8rem;
+            line-height: 1.5;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+        }
+
+        .status-value {
+            color: var(--primary);
+        }
+
+        .loader {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            display: none;
+            color: var(--primary);
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
     </style>
 </head>
 <body>
 
-<div id="loading-overlay">LOADING MODEL...</div>
+    <div id="loader" class="loader">LOADING MODEL...</div>
 
-<div id="ui-layer">
-    <div class="panel">
-        <h2>Foot Selection</h2>
-        <div class="group">
-            <button id="leftBtn" class="active">LEFT FOOT</button>
-            <button id="rightBtn">RIGHT FOOT</button>
+    <div class="ui-panel">
+        <h2>Foot Marker Tool</h2>
+
+        <div class="section">
+            <label>MODEL SELECTION</label>
+            <div class="toggle-container">
+                <button id="leftBtn" class="toggle-btn active" onclick="switchModel('left')">LEFT</button>
+                <button id="rightBtn" class="toggle-btn" onclick="switchModel('right')">RIGHT</button>
+            </div>
         </div>
 
-        <h2>Interaction</h2>
-        <div class="group">
-            <button id="rotateBtn" class="active">ROTATE</button>
-            <button id="drawBtn">MARK</button>
+        <div class="section">
+            <label>DATA IMPORT</label>
+            <div class="file-input-wrapper">
+                <button class="btn-import">Import Text File</button>
+                <input type="file" id="fileInput" accept=".txt">
+            </div>
         </div>
 
-        <h2>Data Tools</h2>
-        <button id="importBtn" class="action-btn import-btn">IMPORT FROM TEXT</button>
-        <button id="downloadBtn" class="action-btn">DOWNLOAD REPORT</button>
-        <button id="clearBtn" style="margin-top:10px; color:#ff4757; background:transparent; border:1px solid #ff4757;">CLEAR MARKERS</button>
-        
-        <input type="file" id="fileInput" accept=".txt">
-        <div id="coords">Model: Left Foot</div>
+        <div class="section">
+            <label>STATUS</label>
+            <div class="status-box">
+                <div class="status-item">
+                    <span>Side:</span>
+                    <span id="statusSide" class="status-value">Left</span>
+                </div>
+                <div class="status-item">
+                    <span>Markers:</span>
+                    <span id="statusCount" class="status-value">0</span>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 
-<script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    <div id="container"></div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
         }
-    }
-</script>
+    </script>
 
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const MODELS = {
-    left: "https://stuart-mcneill.github.io/3Dfootselection/Leftfoot.glb",
-    right: "https://stuart-mcneill.github.io/feet-selection/RightFoot.glb"
-};
+        // Configuration
+        const models = {
+            left: 'https://stuart-mcneill.github.io/3Dfootselection/Leftfoot.glb',
+            right: 'https://stuart-mcneill.github.io/feet-selection/RightFoot.glb'
+        };
 
-// Preset regions extracted from your indexv4.html
-const PRESET_REGIONS = [
-  { name: "Dorsal Hallux Toenail", pos: [-0.11115, 0.098, 0.465], rot: [0, 0.01, 0], scale: [0.05, 0.015, 0.05] },
-  { name: "Dorsal Hallux Interphalangeal joint", pos: [-0.11861, 0.12358, 0.38303], rot: [0.27154, 0.11557, 0.02229], scale: [0.08201, 0.02999, 0.02419] },
-  { name: "Hallux Apex", pos: [-0.11505, 0.069, 0.490], rot: [0.235, 0.097, -0.009], scale: [0.08, 0.05, 0.015] },
-  { name: "Dorsal Hallux", pos: [-0.11970, 0.103, 0.380], rot: [0.138, 0.081, 0.009], scale: [0.10, 0.033, 0.12] },
-  { name: "Plantar Hallux", pos: [-0.12036, 0.03208, 0.41179], rot: [0, 0, 0], scale: [0.10, 0.033, 0.158] },
-  { name: "Dorsal 1st Metatarsophalangeal joint", pos: [-0.13368, 0.14932, 0.27846], rot: [0.29, 0.05, 0.07], scale: [0.117, 0.058, 0.12] },
-  { name: "Plantar 1st Metatarsophalangeal joint", pos: [-0.12227, 0.02006, 0.25386], rot: [0,0,0], scale: [0.125, 0.031, 0.152] }
-  // ... (additional regions can be added here)
-];
+        let scene, camera, renderer, controls, currentModel, markerGroup;
+        let activeSide = 'left';
+        const loader = new GLTFLoader();
 
-let scene, camera, renderer, controls, currentModel;
-let currentFoot = 'left';
-let interactionMode = 'rotate';
-let markerGroup = new THREE.Group();
-let boxGroup = new THREE.Group();
-let markerLogs = [];
+        init();
+        animate();
 
-init();
+        function init() {
+            // Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0a0a0c);
 
-function init() {
-    scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0c);
+            // Camera
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
+            camera.position.set(0, 1.2, 2);
 
-    camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
-    camera.position.set(0.5, 0.5, 1);
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            document.getElementById('container').appendChild(renderer.domElement);
 
-    renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    document.body.appendChild(renderer.domElement);
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 1.5));
-    const spot = new THREE.PointLight(0xffffff, 10);
-    spot.position.set(2, 2, 2);
-    scene.add(spot);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+            directionalLight.position.set(5, 5, 5);
+            scene.add(directionalLight);
 
-    scene.add(markerGroup);
-    scene.add(boxGroup);
+            // Controls
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
 
-    controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
+            // Marker Group
+            markerGroup = new THREE.Group();
+            scene.add(markerGroup);
 
-    loadFoot('left');
+            // Initial Model Load
+            loadFootModel(models.left);
 
-    // UI Listeners
-    document.getElementById('leftBtn').onclick = () => loadFoot('left');
-    document.getElementById('rightBtn').onclick = () => loadFoot('right');
-    document.getElementById('rotateBtn').onclick = () => setInteractionMode('rotate');
-    document.getElementById('drawBtn').onclick = () => setInteractionMode('mark');
-    document.getElementById('clearBtn').onclick = clearMarkers;
-    document.getElementById('downloadBtn').onclick = downloadReport;
-    document.getElementById('importBtn').onclick = () => document.getElementById('fileInput').click();
-    document.getElementById('fileInput').onchange = handleImport;
+            // File Listener
+            document.getElementById('fileInput').addEventListener('change', handleFileUpload);
 
-    renderer.domElement.addEventListener('click', onSceneClick);
-    window.addEventListener('resize', onResize);
-    animate();
-}
-
-function loadFoot(side) {
-    currentFoot = side;
-    document.getElementById('loading-overlay').style.display = 'flex';
-    document.getElementById('leftBtn').classList.toggle('active', side === 'left');
-    document.getElementById('rightBtn').classList.toggle('active', side === 'right');
-    
-    if (currentModel) scene.remove(currentModel);
-    markerGroup.clear();
-    markerLogs = [];
-    
-    new GLTFLoader().load(MODELS[side], (gltf) => {
-        currentModel = gltf.scene;
-        scene.add(currentModel);
-        
-        // Setup Hit Boxes for this foot
-        setupBoxes(side);
-        
-        document.getElementById('loading-overlay').style.display = 'none';
-        document.getElementById('coords').textContent = `Model: ${side.toUpperCase()} Foot`;
-    });
-}
-
-function setupBoxes(side) {
-    boxGroup.clear();
-    const mirror = (side === 'right' ? -1 : 1);
-    
-    PRESET_REGIONS.forEach(reg => {
-        const geo = new THREE.BoxGeometry(reg.scale[0], reg.scale[1], reg.scale[2]);
-        const mat = new THREE.MeshBasicMaterial({ color: 0x00f2ff, wireframe: true, transparent: true, opacity: 0.1 });
-        const box = new THREE.Mesh(geo, mat);
-        
-        // Mirror position if Right Foot
-        box.position.set(reg.pos[0] * mirror, reg.pos[1], reg.pos[2]);
-        box.rotation.set(reg.rot[0], reg.rot[1] * mirror, reg.rot[2]);
-        box.userData.name = reg.name;
-        
-        boxGroup.add(box);
-    });
-}
-
-function setInteractionMode(m) {
-    interactionMode = m;
-    controls.enabled = (m === 'rotate');
-    document.getElementById('rotateBtn').classList.toggle('active', m === 'rotate');
-    document.getElementById('drawBtn').classList.toggle('active', m === 'mark');
-}
-
-function onSceneClick(event) {
-    if (interactionMode !== 'mark') return;
-
-    const mouse = new THREE.Vector2(
-        (event.clientX / window.innerWidth) * 2 - 1,
-        -(event.clientY / window.innerHeight) * 2 + 1
-    );
-
-    const raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(mouse, camera);
-    
-    // Check if we hit a preset box first
-    const intersects = raycaster.intersectObjects(boxGroup.children);
-    
-    if (intersects.length > 0) {
-        const hit = intersects[0];
-        addMarker(hit.point, hit.object.userData.name);
-    }
-}
-
-function addMarker(pos, regionName) {
-    const sphere = new THREE.Mesh(
-        new THREE.SphereGeometry(0.006),
-        new THREE.MeshBasicMaterial({ color: 0xff4757 })
-    );
-    sphere.position.copy(pos);
-    markerGroup.add(sphere);
-    
-    markerLogs.push({
-        region: regionName,
-        x: pos.x.toFixed(4),
-        y: pos.y.toFixed(4),
-        z: pos.z.toFixed(4)
-    });
-    
-    document.getElementById('coords').textContent = `Marked: ${regionName}`;
-}
-
-function handleImport(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        const text = e.target.result;
-        markerGroup.clear();
-        markerLogs = [];
-
-        // Updated Regex to find coordinates from your text format: [Name] Coords: x, y, z
-        const regex = /\[(.*?)\] Coords: ([\d.-]+), ([\d.-]+), ([\d.-]+)/g;
-        let match;
-        while ((match = regex.exec(text)) !== null) {
-            const [_, name, x, y, z] = match;
-            const pos = new THREE.Vector3(parseFloat(x), parseFloat(y), parseFloat(z));
-            addMarker(pos, name);
+            window.addEventListener('resize', onWindowResize);
         }
-        document.getElementById('coords').textContent = `Imported ${markerLogs.length} Points`;
-    };
-    reader.readAsText(file);
-}
 
-function downloadReport() {
-    if (markerLogs.length === 0) return alert("No points to export.");
-    let txt = `FOOT ANALYSIS REPORT\nSide: ${currentFoot.toUpperCase()}\n\n`;
-    markerLogs.forEach((m, i) => {
-        txt += `${i + 1}. [${m.region}] Coords: ${m.x}, ${m.y}, ${m.z}\n`;
-    });
-    
-    const blob = new Blob([txt], { type: 'text/plain' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `Foot_Report_${currentFoot}.txt`;
-    link.click();
-}
+        function loadFootModel(url) {
+            const loaderEl = document.getElementById('loader');
+            loaderEl.style.display = 'block';
 
-function clearMarkers() {
-    markerGroup.clear();
-    markerLogs = [];
-    document.getElementById('coords').textContent = "Markers Cleared";
-}
+            if (currentModel) scene.remove(currentModel);
+            
+            loader.load(url, (gltf) => {
+                currentModel = gltf.scene;
+                scene.add(currentModel);
+                loaderEl.style.display = 'none';
+            }, undefined, (error) => {
+                console.error(error);
+                loaderEl.innerText = "ERROR LOADING MODEL";
+            });
+        }
 
-function onResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
-}
+        window.switchModel = function(side) {
+            if (activeSide === side) return;
+            
+            activeSide = side;
+            
+            // UI Update
+            document.getElementById('leftBtn').classList.toggle('active', side === 'left');
+            document.getElementById('rightBtn').classList.toggle('active', side === 'right');
+            document.getElementById('statusSide').innerText = side.charAt(0).toUpperCase() + side.slice(1);
+            
+            // Logic Update
+            markerGroup.clear();
+            document.getElementById('statusCount').innerText = "0";
+            loadFootModel(models[side]);
+        };
 
-function animate() {
-    requestAnimationFrame(animate);
-    controls.update();
-    renderer.render(scene, camera);
-}
-</script>
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target.result;
+                parseAndPlaceMarkers(content);
+            };
+            reader.readAsText(file);
+        }
+
+        function parseAndPlaceMarkers(text) {
+            // Clear existing
+            markerGroup.clear();
+
+            // 1. Auto-detection of side
+            const upperText = text.toUpperCase();
+            if (upperText.includes("SIDE: LEFT") || upperText.includes("LEFT FOOT -")) {
+                switchModel('left');
+            } else if (upperText.includes("SIDE: RIGHT") || upperText.includes("RIGHT FOOT -")) {
+                switchModel('right');
+            }
+
+            // 2. Parse Coordinates
+            // Looking for: [Name] Coords: x, y, z
+            const lines = text.split('\n');
+            let count = 0;
+
+            lines.forEach(line => {
+                // Regex to match "Coords: x, y, z" while ignoring the prefix
+                const coordRegex = /Coords:\s*(-?\d*\.?\d+),\s*(-?\d*\.?\d+),\s*(-?\d*\.?\d+)/i;
+                const match = line.match(coordRegex);
+
+                if (match) {
+                    const x = parseFloat(match[1]);
+                    const y = parseFloat(match[2]);
+                    const z = parseFloat(match[3]);
+
+                    createMarker(x, y, z);
+                    count++;
+                }
+            });
+
+            document.getElementById('statusCount').innerText = count;
+        }
+
+        function createMarker(x, y, z) {
+            const geometry = new THREE.SphereGeometry(0.005, 16, 16);
+            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.set(x, y, z);
+            markerGroup.add(sphere);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+    </script>
 </body>
 </html>
