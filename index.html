@@ -3,74 +3,67 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Foot Marker Visualizer</title>
+    <title>3D Foot Visualization Tool</title>
     <style>
         :root {
             --primary: #00f2ff;
             --bg-dark: #0a0a0c;
             --panel-bg: rgba(25, 25, 30, 0.8);
             --text: #ffffff;
+            --accent: rgba(0, 242, 255, 0.2);
         }
 
         body, html {
-            margin: 0;
-            padding: 0;
-            width: 100%;
-            height: 100%;
+            margin: 0; padding: 0;
+            width: 100%; height: 100%;
             overflow: hidden;
             background-color: var(--bg-dark);
-            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             color: var(--text);
         }
 
-        #container {
-            width: 100%;
-            height: 100%;
-        }
+        #container { width: 100%; height: 100%; }
 
-        /* Glass-morphism UI */
+        /* Glass-morphism Panels */
         .ui-panel {
             position: absolute;
             top: 20px;
             left: 20px;
-            width: 300px;
-            padding: 24px;
+            width: 320px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
             background: var(--panel-bg);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             border-radius: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
             z-index: 10;
+            padding: 20px;
+            box-sizing: border-box;
         }
 
         h2 {
-            margin: 0 0 20px 0;
-            font-size: 1.2rem;
-            font-weight: 500;
-            letter-spacing: 1px;
+            margin: 0 0 15px 0;
+            font-size: 1rem;
+            font-weight: 600;
+            letter-spacing: 1.5px;
             color: var(--primary);
             text-transform: uppercase;
+            border-bottom: 1px solid var(--accent);
+            padding-bottom: 10px;
         }
 
-        .section {
-            margin-bottom: 24px;
-        }
+        .section { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-size: 0.75rem; opacity: 0.6; letter-spacing: 1px; }
 
-        label {
-            display: block;
-            margin-bottom: 10px;
-            font-size: 0.85rem;
-            opacity: 0.8;
-        }
-
-        /* Toggle Switch */
+        /* Controls */
         .toggle-container {
             display: flex;
-            background: rgba(0, 0, 0, 0.3);
+            background: rgba(0, 0, 0, 0.4);
             border-radius: 8px;
             padding: 4px;
-            margin-bottom: 15px;
         }
 
         .toggle-btn {
@@ -81,36 +74,33 @@
             color: white;
             cursor: pointer;
             border-radius: 6px;
-            transition: all 0.3s ease;
-            font-size: 0.9rem;
+            transition: 0.2s;
+            font-size: 0.85rem;
+            font-weight: 500;
         }
 
         .toggle-btn.active {
             background: var(--primary);
             color: #000;
-            font-weight: bold;
         }
 
-        /* Import Button */
-        .file-input-wrapper {
+        .btn-import-wrapper {
             position: relative;
-            overflow: hidden;
-            display: inline-block;
             width: 100%;
         }
 
         .btn-import {
             width: 100%;
             background: transparent;
-            border: 2px solid var(--primary);
+            border: 1.5px solid var(--primary);
             color: var(--primary);
             padding: 12px;
             border-radius: 8px;
-            font-weight: bold;
+            font-weight: 600;
             cursor: pointer;
-            transition: all 0.3s ease;
-            text-transform: uppercase;
+            transition: 0.3s;
             font-size: 0.8rem;
+            text-transform: uppercase;
         }
 
         .btn-import:hover {
@@ -120,51 +110,51 @@
 
         #fileInput {
             position: absolute;
-            font-size: 100px;
-            right: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
+            top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
         }
 
-        /* Status Readout */
-        .status-box {
-            background: rgba(0, 0, 0, 0.4);
+        /* Marker List Display */
+        .marker-list {
+            flex-grow: 1;
+            background: rgba(0, 0, 0, 0.3);
             border-radius: 8px;
-            padding: 15px;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 0.8rem;
-            line-height: 1.5;
+            padding: 10px;
+            font-family: 'Monaco', 'Consolas', monospace;
+            font-size: 0.7rem;
+            overflow-y: auto;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-top: 10px;
+            max-height: 300px;
         }
 
-        .status-item {
+        .marker-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
             justify-content: space-between;
-            margin-bottom: 5px;
         }
 
-        .status-value {
-            color: var(--primary);
-        }
+        .marker-entry:last-child { border-bottom: none; }
+        .m-coord { color: var(--primary); }
 
         .loader {
             position: absolute;
-            top: 50%;
-            left: 50%;
+            top: 50%; left: 50%;
             transform: translate(-50%, -50%);
-            display: none;
             color: var(--primary);
             font-weight: bold;
-            letter-spacing: 2px;
+            display: none;
+            z-index: 100;
         }
     </style>
 </head>
 <body>
 
-    <div id="loader" class="loader">LOADING MODEL...</div>
+    <div id="loader" class="loader">SYNCHRONIZING SCENE...</div>
 
     <div class="ui-panel">
-        <h2>Foot Marker Tool</h2>
+        <h2>Foot Visualization</h2>
 
         <div class="section">
             <label>MODEL SELECTION</label>
@@ -175,24 +165,20 @@
         </div>
 
         <div class="section">
-            <label>DATA IMPORT</label>
-            <div class="file-input-wrapper">
-                <button class="btn-import">Import Text File</button>
+            <label>IMPORT DATA (.TXT)</label>
+            <div class="btn-import-wrapper">
+                <button class="btn-import">Select Text File</button>
                 <input type="file" id="fileInput" accept=".txt">
             </div>
         </div>
 
         <div class="section">
-            <label>STATUS</label>
-            <div class="status-box">
-                <div class="status-item">
-                    <span>Side:</span>
-                    <span id="statusSide" class="status-value">Left</span>
-                </div>
-                <div class="status-item">
-                    <span>Markers:</span>
-                    <span id="statusCount" class="status-value">0</span>
-                </div>
+            <label>IMPORTED COORDINATES</label>
+            <div id="statusHeader" style="font-size: 0.8rem; margin-bottom: 5px;">
+                Model: <span id="currentModelDisplay" style="color: var(--primary)">Left</span>
+            </div>
+            <div id="markerList" class="marker-list">
+                <div style="opacity: 0.4">No data imported...</div>
             </div>
         </div>
     </div>
@@ -213,7 +199,6 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        // Configuration
         const models = {
             left: 'https://stuart-mcneill.github.io/3Dfootselection/Leftfoot.glb',
             right: 'https://stuart-mcneill.github.io/feet-selection/RightFoot.glb'
@@ -227,21 +212,18 @@
         animate();
 
         function init() {
-            // Scene Setup
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0a0a0c);
 
-            // Camera
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.01, 100);
             camera.position.set(0, 1.2, 2);
 
-            // Renderer
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
             document.getElementById('container').appendChild(renderer.domElement);
 
-            // Lighting
+            // Universal Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
@@ -249,20 +231,15 @@
             directionalLight.position.set(5, 5, 5);
             scene.add(directionalLight);
 
-            // Controls
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
-            // Marker Group
             markerGroup = new THREE.Group();
             scene.add(markerGroup);
 
-            // Initial Model Load
             loadFootModel(models.left);
 
-            // File Listener
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
-
             window.addEventListener('resize', onWindowResize);
         }
 
@@ -274,28 +251,27 @@
             
             loader.load(url, (gltf) => {
                 currentModel = gltf.scene;
+                
+                // Normalizing scale and position to ensure parity
+                currentModel.scale.set(1, 1, 1);
+                currentModel.position.set(0, 0, 0);
+                
                 scene.add(currentModel);
                 loaderEl.style.display = 'none';
-            }, undefined, (error) => {
-                console.error(error);
-                loaderEl.innerText = "ERROR LOADING MODEL";
             });
         }
 
         window.switchModel = function(side) {
             if (activeSide === side) return;
-            
             activeSide = side;
             
-            // UI Update
             document.getElementById('leftBtn').classList.toggle('active', side === 'left');
             document.getElementById('rightBtn').classList.toggle('active', side === 'right');
-            document.getElementById('statusSide').innerText = side.charAt(0).toUpperCase() + side.slice(1);
+            document.getElementById('currentModelDisplay').innerText = side.charAt(0).toUpperCase() + side.slice(1);
             
-            // Logic Update
-            markerGroup.clear();
-            document.getElementById('statusCount').innerText = "0";
             loadFootModel(models[side]);
+            markerGroup.clear();
+            document.getElementById('markerList').innerHTML = '<div style="opacity: 0.4">Model changed. Reload file if needed.</div>';
         };
 
         function handleFileUpload(event) {
@@ -303,34 +279,30 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = (e) => {
-                const content = e.target.result;
-                parseAndPlaceMarkers(content);
-            };
+            reader.onload = (e) => parseAndPlaceMarkers(e.target.result);
             reader.readAsText(file);
         }
 
         function parseAndPlaceMarkers(text) {
-            // Clear existing
             markerGroup.clear();
+            const listContainer = document.getElementById('markerList');
+            listContainer.innerHTML = '';
 
-            // 1. Auto-detection of side
+            const lines = text.split('\n');
+            let foundPoints = [];
+
+            // Auto-detection of side
             const upperText = text.toUpperCase();
-            if (upperText.includes("SIDE: LEFT") || upperText.includes("LEFT FOOT -")) {
+            if (upperText.includes("SIDE: LEFT") || upperText.includes("LEFT FOOT")) {
                 switchModel('left');
-            } else if (upperText.includes("SIDE: RIGHT") || upperText.includes("RIGHT FOOT -")) {
+            } else if (upperText.includes("SIDE: RIGHT") || upperText.includes("RIGHT FOOT")) {
                 switchModel('right');
             }
 
-            // 2. Parse Coordinates
-            // Looking for: [Name] Coords: x, y, z
-            const lines = text.split('\n');
-            let count = 0;
-
-            lines.forEach(line => {
-                // Regex to match "Coords: x, y, z" while ignoring the prefix
-                const coordRegex = /Coords:\s*(-?\d*\.?\d+),\s*(-?\d*\.?\d+),\s*(-?\d*\.?\d+)/i;
-                const match = line.match(coordRegex);
+            lines.forEach((line, index) => {
+                // Regex for both "Coords: x, y, z" and "[x, y, z]" formats
+                const regex = /(-?\d+\.\d+),\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/;
+                const match = line.match(regex);
 
                 if (match) {
                     const x = parseFloat(match[1]);
@@ -338,11 +310,19 @@
                     const z = parseFloat(match[3]);
 
                     createMarker(x, y, z);
-                    count++;
+                    
+                    const entry = document.createElement('div');
+                    entry.className = 'marker-entry';
+                    entry.innerHTML = `<span>#${foundPoints.length + 1}</span><span class="m-coord">${x}, ${y}, ${z}</span>`;
+                    listContainer.appendChild(entry);
+                    
+                    foundPoints.push({x, y, z});
                 }
             });
 
-            document.getElementById('statusCount').innerText = count;
+            if (foundPoints.length === 0) {
+                listContainer.innerHTML = '<div style="color: #ff4b4b">No valid coordinates found.</div>';
+            }
         }
 
         function createMarker(x, y, z) {
