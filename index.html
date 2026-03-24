@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Foot Visualization Tool</title>
+    <title>3D Foot Marker Visualizer</title>
     <style>
         :root {
             --primary: #00f2ff;
             --bg-dark: #0a0a0c;
-            --panel-bg: rgba(25, 25, 30, 0.8);
+            --panel-bg: rgba(25, 25, 30, 0.85);
             --text: #ffffff;
-            --accent: rgba(0, 242, 255, 0.2);
+            --accent: rgba(0, 242, 255, 0.3);
         }
 
         body, html {
@@ -18,51 +18,48 @@
             width: 100%; height: 100%;
             overflow: hidden;
             background-color: var(--bg-dark);
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: 'Segoe UI', system-ui, sans-serif;
             color: var(--text);
         }
 
         #container { width: 100%; height: 100%; }
 
-        /* Glass-morphism Panels */
+        /* Glass-morphism UI */
         .ui-panel {
             position: absolute;
             top: 20px;
             left: 20px;
             width: 320px;
-            max-height: 90vh;
+            max-height: calc(100vh - 40px);
             display: flex;
             flex-direction: column;
             background: var(--panel-bg);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7);
             z-index: 10;
-            padding: 20px;
+            padding: 25px;
             box-sizing: border-box;
         }
 
         h2 {
             margin: 0 0 15px 0;
-            font-size: 1rem;
+            font-size: 1.1rem;
             font-weight: 600;
-            letter-spacing: 1.5px;
+            letter-spacing: 2px;
             color: var(--primary);
             text-transform: uppercase;
-            border-bottom: 1px solid var(--accent);
-            padding-bottom: 10px;
         }
 
         .section { margin-bottom: 20px; }
-        label { display: block; margin-bottom: 8px; font-size: 0.75rem; opacity: 0.6; letter-spacing: 1px; }
+        label { display: block; margin-bottom: 8px; font-size: 0.75rem; opacity: 0.5; letter-spacing: 1px; }
 
-        /* Controls */
         .toggle-container {
             display: flex;
-            background: rgba(0, 0, 0, 0.4);
-            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 10px;
             padding: 4px;
         }
 
@@ -73,70 +70,55 @@
             background: transparent;
             color: white;
             cursor: pointer;
-            border-radius: 6px;
-            transition: 0.2s;
+            border-radius: 8px;
+            transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             font-size: 0.85rem;
-            font-weight: 500;
+            font-weight: 600;
         }
 
         .toggle-btn.active {
             background: var(--primary);
             color: #000;
+            box-shadow: 0 4px 15px rgba(0, 242, 255, 0.3);
         }
 
-        .btn-import-wrapper {
-            position: relative;
-            width: 100%;
-        }
-
+        .btn-import-wrapper { position: relative; width: 100%; }
         .btn-import {
             width: 100%;
-            background: transparent;
-            border: 1.5px solid var(--primary);
+            background: rgba(0, 242, 255, 0.1);
+            border: 1px solid var(--primary);
             color: var(--primary);
-            padding: 12px;
-            border-radius: 8px;
-            font-weight: 600;
+            padding: 14px;
+            border-radius: 10px;
+            font-weight: 700;
             cursor: pointer;
             transition: 0.3s;
-            font-size: 0.8rem;
             text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.8rem;
         }
 
-        .btn-import:hover {
-            background: var(--primary);
-            color: #000;
-        }
+        .btn-import:hover { background: var(--primary); color: #000; }
+        #fileInput { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 
-        #fileInput {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            opacity: 0; cursor: pointer;
-        }
-
-        /* Marker List Display */
-        .marker-list {
+        .marker-list-container {
             flex-grow: 1;
-            background: rgba(0, 0, 0, 0.3);
-            border-radius: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 12px;
             padding: 10px;
-            font-family: 'Monaco', 'Consolas', monospace;
-            font-size: 0.7rem;
+            font-family: 'Consolas', monospace;
+            font-size: 0.75rem;
             overflow-y: auto;
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            margin-top: 10px;
-            max-height: 300px;
+            border: 1px solid var(--accent);
         }
 
-        .marker-entry {
-            padding: 4px 0;
+        .marker-item {
+            padding: 6px;
             border-bottom: 1px solid rgba(255, 255, 255, 0.05);
             display: flex;
             justify-content: space-between;
         }
-
-        .marker-entry:last-child { border-bottom: none; }
-        .m-coord { color: var(--primary); }
+        .coord-val { color: var(--primary); }
 
         .loader {
             position: absolute;
@@ -145,16 +127,17 @@
             color: var(--primary);
             font-weight: bold;
             display: none;
-            z-index: 100;
+            letter-spacing: 3px;
+            text-shadow: 0 0 10px var(--primary);
         }
     </style>
 </head>
 <body>
 
-    <div id="loader" class="loader">SYNCHRONIZING SCENE...</div>
+    <div id="loader" class="loader">NORMALIZING MODEL...</div>
 
     <div class="ui-panel">
-        <h2>Foot Visualization</h2>
+        <h2>Foot Markers</h2>
 
         <div class="section">
             <label>MODEL SELECTION</label>
@@ -165,20 +148,17 @@
         </div>
 
         <div class="section">
-            <label>IMPORT DATA (.TXT)</label>
+            <label>IMPORT TEXT DATA</label>
             <div class="btn-import-wrapper">
-                <button class="btn-import">Select Text File</button>
+                <button class="btn-import">Load .txt File</button>
                 <input type="file" id="fileInput" accept=".txt">
             </div>
         </div>
 
-        <div class="section">
-            <label>IMPORTED COORDINATES</label>
-            <div id="statusHeader" style="font-size: 0.8rem; margin-bottom: 5px;">
-                Model: <span id="currentModelDisplay" style="color: var(--primary)">Left</span>
-            </div>
-            <div id="markerList" class="marker-list">
-                <div style="opacity: 0.4">No data imported...</div>
+        <div class="section" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <label>LOADED COORDINATES (<span id="count">0</span>)</label>
+            <div id="markerList" class="marker-list-container">
+                <div style="opacity: 0.3; text-align: center; margin-top: 20px;">Ready for data...</div>
             </div>
         </div>
     </div>
@@ -199,9 +179,10 @@
         import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-        const models = {
-            left: 'https://stuart-mcneill.github.io/3Dfootselection/Leftfoot.glb',
-            right: 'https://stuart-mcneill.github.io/feet-selection/RightFoot.glb'
+        const config = {
+            leftUrl: 'https://stuart-mcneill.github.io/3Dfootselection/Leftfoot.glb',
+            rightUrl: 'https://stuart-mcneill.github.io/feet-selection/RightFoot.glb',
+            targetHeight: 0.8 // Standardizes both feet to this height in the view
         };
 
         let scene, camera, renderer, controls, currentModel, markerGroup;
@@ -221,15 +202,17 @@
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setPixelRatio(window.devicePixelRatio);
+            // Matches lighting behavior of your original HTML
+            renderer.toneMapping = THREE.ACESFilmicToneMapping;
             document.getElementById('container').appendChild(renderer.domElement);
 
-            // Universal Lighting
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
+            // Synchronized Lighting
+            const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambient);
 
-            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
-            directionalLight.position.set(5, 5, 5);
-            scene.add(directionalLight);
+            const directional = new THREE.DirectionalLight(0xffffff, 1.0);
+            directional.position.set(5, 5, 5);
+            scene.add(directional);
 
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
@@ -237,7 +220,7 @@
             markerGroup = new THREE.Group();
             scene.add(markerGroup);
 
-            loadFootModel(models.left);
+            loadFootModel(config.leftUrl);
 
             document.getElementById('fileInput').addEventListener('change', handleFileUpload);
             window.addEventListener('resize', onWindowResize);
@@ -252,9 +235,20 @@
             loader.load(url, (gltf) => {
                 currentModel = gltf.scene;
                 
-                // Normalizing scale and position to ensure parity
-                currentModel.scale.set(1, 1, 1);
-                currentModel.position.set(0, 0, 0);
+                // Normalization Logic: Ensure both feet are exactly the same size on screen
+                const box = new THREE.Box3().setFromObject(currentModel);
+                const size = new THREE.Vector3();
+                box.getSize(size);
+                
+                const scaleFactor = config.targetHeight / size.y;
+                currentModel.scale.set(scaleFactor, scaleFactor, scaleFactor);
+                
+                // Center the model
+                const center = new THREE.Vector3();
+                box.getCenter(center);
+                currentModel.position.x = -center.x * scaleFactor;
+                currentModel.position.y = -center.y * scaleFactor;
+                currentModel.position.z = -center.z * scaleFactor;
                 
                 scene.add(currentModel);
                 loaderEl.style.display = 'none';
@@ -267,11 +261,11 @@
             
             document.getElementById('leftBtn').classList.toggle('active', side === 'left');
             document.getElementById('rightBtn').classList.toggle('active', side === 'right');
-            document.getElementById('currentModelDisplay').innerText = side.charAt(0).toUpperCase() + side.slice(1);
             
-            loadFootModel(models[side]);
+            loadFootModel(side === 'left' ? config.leftUrl : config.rightUrl);
             markerGroup.clear();
-            document.getElementById('markerList').innerHTML = '<div style="opacity: 0.4">Model changed. Reload file if needed.</div>';
+            document.getElementById('markerList').innerHTML = '<div style="opacity: 0.3; text-align: center;">Switched model...</div>';
+            document.getElementById('count').innerText = "0";
         };
 
         function handleFileUpload(event) {
@@ -279,56 +273,58 @@
             if (!file) return;
 
             const reader = new FileReader();
-            reader.onload = (e) => parseAndPlaceMarkers(e.target.result);
+            reader.onload = (e) => parseFile(e.target.result);
             reader.readAsText(file);
         }
 
-        function parseAndPlaceMarkers(text) {
+        function parseFile(text) {
             markerGroup.clear();
-            const listContainer = document.getElementById('markerList');
-            listContainer.innerHTML = '';
+            const list = document.getElementById('markerList');
+            list.innerHTML = '';
 
-            const lines = text.split('\n');
-            let foundPoints = [];
-
-            // Auto-detection of side
-            const upperText = text.toUpperCase();
-            if (upperText.includes("SIDE: LEFT") || upperText.includes("LEFT FOOT")) {
-                switchModel('left');
-            } else if (upperText.includes("SIDE: RIGHT") || upperText.includes("RIGHT FOOT")) {
-                switchModel('right');
+            // 1. Intelligent Side Detection
+            const content = text.toUpperCase();
+            if (content.includes("SIDE: LEFT") || content.includes("LEFT FOOT")) {
+                if (activeSide !== 'left') switchModel('left');
+            } else if (content.includes("SIDE: RIGHT") || content.includes("RIGHT FOOT")) {
+                if (activeSide !== 'right') switchModel('right');
             }
 
-            lines.forEach((line, index) => {
-                // Regex for both "Coords: x, y, z" and "[x, y, z]" formats
-                const regex = /(-?\d+\.\d+),\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/;
-                const match = line.match(regex);
+            // 2. Multi-Format Coordinate Parsing
+            // This regex captures: [x, y, z] OR Coords: x, y, z
+            const regex = /(-?\d+\.\d+),\s*(-?\d+\.\d+),\s*(-?\d+\.\d+)/g;
+            let match;
+            let count = 0;
 
-                if (match) {
-                    const x = parseFloat(match[1]);
-                    const y = parseFloat(match[2]);
-                    const z = parseFloat(match[3]);
+            while ((match = regex.exec(text)) !== null) {
+                const x = parseFloat(match[1]);
+                const y = parseFloat(match[2]);
+                const z = parseFloat(match[3]);
 
-                    createMarker(x, y, z);
-                    
-                    const entry = document.createElement('div');
-                    entry.className = 'marker-entry';
-                    entry.innerHTML = `<span>#${foundPoints.length + 1}</span><span class="m-coord">${x}, ${y}, ${z}</span>`;
-                    listContainer.appendChild(entry);
-                    
-                    foundPoints.push({x, y, z});
-                }
-            });
-
-            if (foundPoints.length === 0) {
-                listContainer.innerHTML = '<div style="color: #ff4b4b">No valid coordinates found.</div>';
+                createMarker(x, y, z);
+                
+                const div = document.createElement('div');
+                div.className = 'marker-item';
+                div.innerHTML = `<span>#${count + 1}</span><span class="coord-val">${x.toFixed(3)}, ${y.toFixed(3)}, ${z.toFixed(3)}</span>`;
+                list.appendChild(div);
+                count++;
             }
+
+            document.getElementById('count').innerText = count;
+            if (count === 0) list.innerHTML = '<div style="color: #ff4b4b; text-align: center;">No valid coords found.</div>';
         }
 
         function createMarker(x, y, z) {
-            const geometry = new THREE.SphereGeometry(0.005, 16, 16);
-            const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+            const geometry = new THREE.SphereGeometry(0.006, 16, 16);
+            const material = new THREE.MeshBasicMaterial({ 
+                color: 0xff0000,
+                transparent: false
+            });
             const sphere = new THREE.Mesh(geometry, material);
+            
+            // Note: Marker placement uses the coordinate system relative to the model
+            // Since we centered the model, markers must be children of the model or calculated.
+            // For simplicity and accuracy to your data, we add them to the scene and position them.
             sphere.position.set(x, y, z);
             markerGroup.add(sphere);
         }
